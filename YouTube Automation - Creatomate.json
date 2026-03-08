@@ -1,0 +1,851 @@
+{
+  "name": "YouTube Automation - Creatomate",
+  "nodes": [
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a viral YouTube Shorts content strategist. Today is {{ $now.format('YYYY-MM-DD') }}.\n\nCreate 2 video ideas that combine current world events/trends with deep philosophical or motivational lessons. Think about AI, economy, geopolitics, human behaviour.\n\nReturn ONLY a valid JSON array with exactly 2 objects. No markdown, no explanation.\n\nEach object must have:\n- id: '{{ $now.format('YYYYMMDD') }}_01' and '{{ $now.format('YYYYMMDD') }}_02'\n- idea: powerful title 8-12 words max\n- caption: 2-3 sentences with the philosophical angle and lesson\n- channel_style_prompt: narration tone for voiceover (e.g. 'deep, calm, motivational narrator')\n- character_style_prompt: visual style for AI image generator (e.g. 'cinematic eagle, dramatic sky, photorealistic')\n- production_status: always 'production'"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        -3312,
+        112
+      ],
+      "id": "1a831820-4539-489c-ada5-c8d983e07553",
+      "name": "Generate Ideas",
+      "credentials": {
+        "openAiApi": {
+          "id": "InVTotEOnyJ39ovi",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst content = response.message.content;\n\nlet cleanContent = content.trim();\nif (cleanContent.startsWith('```json')) {\n  cleanContent = cleanContent.replace(/^```json\\n?/, '').replace(/\\n?```$/, '');\n} else if (cleanContent.startsWith('```')) {\n  cleanContent = cleanContent.replace(/^```\\n?/, '').replace(/\\n?```$/, '');\n}\n\nlet ideas;\ntry {\n  ideas = JSON.parse(cleanContent);\n} catch(e) {\n  throw new Error('Failed to parse: ' + cleanContent.substring(0, 200));\n}\n\nreturn [{ json: ideas[0] }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2880,
+        112
+      ],
+      "id": "240c60e5-e53f-48d4-96a7-f76c3c57a5e2",
+      "name": "Parse Ideas"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1CNQXZul6okG_UvoGOtbZ5N7p59zj_qvjASVQ0k8_Mp8",
+          "mode": "list",
+          "cachedResultName": "AutoYoutube"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.id }}",
+            "idea": "={{ $json.idea }}",
+            "caption": "={{ $json.caption }}",
+            "channel_style_prompt": "={{ $json.channel_style_prompt }}",
+            "character_style_prompt": "={{ $json.character_style_prompt }}",
+            "production_status": "={{ $json.production_status }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "idea",
+              "displayName": "idea",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "caption",
+              "displayName": "caption",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "channel_style_prompt",
+              "displayName": "channel_style_prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "character_style_prompt",
+              "displayName": "character_style_prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "production_status",
+              "displayName": "production_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -2640,
+        112
+      ],
+      "id": "5afb2a08-e2b3-43f4-85cb-53964745e509",
+      "name": "Write to Sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "vo9EW9YS5yAVnVFW",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1CNQXZul6okG_UvoGOtbZ5N7p59zj_qvjASVQ0k8_Mp8",
+          "mode": "list",
+          "cachedResultName": "AutoYoutube"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "production_status",
+              "lookupValue": "production"
+            }
+          ]
+        },
+        "options": {
+          "returnFirstMatch": true
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -2400,
+        112
+      ],
+      "id": "4c431545-7641-48a4-98c9-d4a007886fdb",
+      "name": "Get row to process",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "vo9EW9YS5yAVnVFW",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1CNQXZul6okG_UvoGOtbZ5N7p59zj_qvjASVQ0k8_Mp8",
+          "mode": "list",
+          "cachedResultName": "AutoYoutube"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 728765251,
+          "mode": "list",
+          "cachedResultName": "Hoja 2",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1CNQXZul6okG_UvoGOtbZ5N7p59zj_qvjASVQ0k8_Mp8/edit#gid=728765251"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "to_use",
+              "lookupValue": "final"
+            }
+          ]
+        },
+        "options": {
+          "returnFirstMatch": true
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -2160,
+        112
+      ],
+      "id": "eb6d8e8f-378f-42b8-84ee-46e637d02e9c",
+      "name": "Get Music",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "vo9EW9YS5yAVnVFW",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an expert video script writer for YouTube Shorts.\n\nVideo Title: {{ $('Get row to process').item.json.idea }}\nVideo Description: {{ $('Get row to process').item.json.caption }}\nVisual Style: {{ $('Get row to process').item.json.character_style_prompt }}\nNarration Tone: {{ $('Get row to process').item.json.channel_style_prompt }}\n\nCreate a script for a 60-second vertical video (YouTube Shorts format).\n\nReturn ONLY a valid JSON array of 5 scene objects. No markdown, no explanation.\n\nEach scene object must have:\n- voiceText: voiceover text for this scene (2 sentences, 11-15 words each)\n- visualPrompt: detailed image generation prompt for this scene matching the visual style above\n\nMake it flow as one continuous philosophical story. Do not use double quotes inside text values."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        -1920,
+        112
+      ],
+      "id": "a045c14d-2e55-4059-a387-a8052b54b17b",
+      "name": "Generate Script",
+      "credentials": {
+        "openAiApi": {
+          "id": "InVTotEOnyJ39ovi",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst content = response.message.content;\n\nlet cleanContent = content.trim();\nif (cleanContent.startsWith('```json')) {\n  cleanContent = cleanContent.replace(/^```json\\n?/, '').replace(/\\n?```$/, '');\n} else if (cleanContent.startsWith('```')) {\n  cleanContent = cleanContent.replace(/^```\\n?/, '').replace(/\\n?```$/, '');\n}\n\nlet scenes;\ntry {\n  scenes = JSON.parse(cleanContent);\n} catch(e) {\n  throw new Error('Failed to parse scenes: ' + cleanContent.substring(0, 300));\n}\n\nconst videoData = $('Get row to process').first().json;\nconst musicData = $('Get Music').first().json;\n\n// Build Creatomate modifications array\nconst modifications = {};\n\nscenes.forEach((scene, i) => {\n  const sceneNum = i + 1;\n  modifications[`Scene-${sceneNum}-Voice`] = scene.voiceText;\n  modifications[`Scene-${sceneNum}-Image`] = scene.visualPrompt;\n  modifications[`Scene-${sceneNum}-Caption`] = scene.voiceText;\n});\n\nmodifications['Title'] = videoData.idea;\nmodifications['Music-URL'] = musicData.Randomized_audio || 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3';\n\nreturn [{\n  json: {\n    modifications,\n    videoData,\n    scenes\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1680,
+        112
+      ],
+      "id": "1cb476ca-d2b0-484f-85d4-31481655b873",
+      "name": "Build Creatomate Payload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.creatomate.com/v2/renders",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer 6ef82c5602824be5a532c62ecaf3bb0951753c8e0348e1627f43ce82c4805ca5ae4f8dcb7c67de4d774181b56e362ccf"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"template_id\": \"5363b12a-4dec-4e2f-a68d-c613c7a671fe\",\n  \"modifications\": {\n    \"Text-1.text\": \"={{ $('Get row to process').item.json.idea }}\",\n    \"Text-2.text\": \"={{ $('Get row to process').item.json.caption }}\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1440,
+        112
+      ],
+      "id": "6b15bda3-62ad-406d-ab22-9122c9d7ee46",
+      "name": "Create Video (Creatomate)"
+    },
+    {
+      "parameters": {
+        "amount": 60
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -1200,
+        112
+      ],
+      "id": "5cde0e32-fb69-40a6-abe2-12e06f47d5a7",
+      "name": "Wait 60s",
+      "webhookId": "99a03cca-e2c5-4b2a-a78a-ae59b620e40a"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.creatomate.com/v2/renders/{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 6ef82c5602824be5a532c62ecaf3bb0951753c8e0348e1627f43ce82c4805ca5ae4f8dcb7c67de4d774181b56e362ccf"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -960,
+        112
+      ],
+      "id": "8aab4b4b-8b16-464c-ad6f-7c5eb4dcc37d",
+      "name": "Check Render Status"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "succeeded",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "fd62db2d-2275-4356-86cc-d8c5dc56d22b"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Done"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "planned",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b4d6350b-a3e0-4396-94cf-2ff200c63d18"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Rendering"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "failed",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e3616cc8-860f-4bb6-a43e-949907c18a21"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Error"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -720,
+        112
+      ],
+      "id": "87fc2fbd-384e-4eef-81fd-16324adcf0a0",
+      "name": "Switch Status"
+    },
+    {
+      "parameters": {
+        "amount": 30
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -720,
+        352
+      ],
+      "id": "dc352d9e-9ce8-427f-9cd4-531f74782ec5",
+      "name": "Wait 30s more",
+      "webhookId": "897eddf6-d389-4513-a9da-37c2bfb40646"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -480,
+        -16
+      ],
+      "id": "0f3ede0d-aae5-47df-909c-fcb33547444f",
+      "name": "Download Video"
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "title": "={{ $('Get row to process').item.json.idea }} #Shorts",
+        "regionCode": "ES",
+        "categoryId": "=22",
+        "options": {
+          "description": "={{ $('Get row to process').item.json.caption }}",
+          "privacyStatus": "public",
+          "tags": "motivacion,filosofia,reflexion,shorts,viral"
+        }
+      },
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        -16
+      ],
+      "id": "d8b5794a-048f-4cac-a3d3-3f99cfd5a7d7",
+      "name": "Upload to YouTube",
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "1UkGNsEVPR9z7g3S",
+          "name": "YouTube account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1CNQXZul6okG_UvoGOtbZ5N7p59zj_qvjASVQ0k8_Mp8",
+          "mode": "list",
+          "cachedResultName": "AutoYoutube"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Get row to process').item.json.id }}",
+            "production_status": "done",
+            "publishing_status": "done",
+            "final _output": "={{ $('Check Render Status').item.json.url }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "production_status",
+              "displayName": "production_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "publishing_status",
+              "displayName": "publishing_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "final _output",
+              "displayName": "final _output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        0,
+        -16
+      ],
+      "id": "bc6b93bf-3560-4e6a-b20b-e6b40e1fd8c7",
+      "name": "Mark as Done",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "vo9EW9YS5yAVnVFW",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1CNQXZul6okG_UvoGOtbZ5N7p59zj_qvjASVQ0k8_Mp8",
+          "mode": "list",
+          "cachedResultName": "AutoYoutube"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Get row to process').item.json.id }}",
+            "production_status": "error",
+            "error_Log": "={{ $json.status }}: {{ $json.error_message }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "production_status",
+              "displayName": "production_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "error_Log",
+              "displayName": "error_Log",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -480,
+        224
+      ],
+      "id": "de2d5b87-a088-4c8e-9e72-e6431a83b183",
+      "name": "Log Error",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "vo9EW9YS5yAVnVFW",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -3488,
+        112
+      ],
+      "id": "7e817073-6db2-48a1-9ab6-ba5f7f09822d",
+      "name": "When clicking ‘Execute workflow’"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Generate Ideas": {
+      "main": [
+        [
+          {
+            "node": "Parse Ideas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Ideas": {
+      "main": [
+        [
+          {
+            "node": "Write to Sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write to Sheet1": {
+      "main": [
+        [
+          {
+            "node": "Get row to process",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row to process": {
+      "main": [
+        [
+          {
+            "node": "Get Music",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Music": {
+      "main": [
+        [
+          {
+            "node": "Generate Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Script": {
+      "main": [
+        [
+          {
+            "node": "Build Creatomate Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Creatomate Payload": {
+      "main": [
+        [
+          {
+            "node": "Create Video (Creatomate)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Video (Creatomate)": {
+      "main": [
+        [
+          {
+            "node": "Wait 60s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 60s": {
+      "main": [
+        [
+          {
+            "node": "Check Render Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Render Status": {
+      "main": [
+        [
+          {
+            "node": "Switch Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Status": {
+      "main": [
+        [
+          {
+            "node": "Download Video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait 30s more",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 30s more": {
+      "main": [
+        [
+          {
+            "node": "Check Render Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Video": {
+      "main": [
+        [
+          {
+            "node": "Upload to YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to YouTube": {
+      "main": [
+        [
+          {
+            "node": "Mark as Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Generate Ideas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "10a591cc-b410-4178-93a4-43355986a531",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "7200a10b579840667ee30ede1a205653dad12fa8e0eafc997541bdf2aeaef236"
+  },
+  "id": "DWJVwLh2iYqb5SX3",
+  "tags": []
+}

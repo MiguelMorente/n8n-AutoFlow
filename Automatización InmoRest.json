@@ -1,0 +1,621 @@
+{
+  "name": "Automatización InmoRest",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "92609858-a605-45d5-812d-cfbb7c012d47",
+      "name": "Email Trigger (IMAP)",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [
+        -656,
+        128
+      ],
+      "credentials": {
+        "imap": {
+          "id": "NbqNJCQRZ3sz702E",
+          "name": "IMAP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Extraer información del email\nconst emailBody = $input.item.json.text || $input.item.json.textPlain || '';\nconst emailSubject = $input.item.json.subject || '';\nconst emailFrom = $input.item.json.from?.text || $input.item.json.from || '';\n\nlet senderEmail = '';\nif ($input.item.json.from) {\n  if (typeof $input.item.json.from === 'string') {\n    const emailMatch = $input.item.json.from.match(/[a-zA-Z0-9._%+\\\\-]+@[a-zA-Z0-9.\\\\-]+\\\\.[a-zA-Z]{2,}/);\n    senderEmail = emailMatch ? emailMatch[0] : '';\n  } else if ($input.item.json.from.address) {\n    senderEmail = $input.item.json.from.address;\n  }\n}\n\nfunction extractData(text, subject, fallbackEmail) {\n  const data = {\n    name: '',\n    telephone: '',\n    email: '',\n    reference: '',\n    propertyArea: '',\n    web: '',\n    isValidLead: false\n  };\n  \n  const patterns = {\n    name: /(?:Name|Nombre|FORM Name)\\s*:?\\s*([^\\n]+)/i,\n    telephone: /(?:Telephone|Teléfono|Tel|Phone)\\s*:?\\s*([\\d\\s\\-\\+]{9,})/i,\n    email: /(?:Email|Mail|E-mail|Correo)\\s*:?\\s*([a-zA-Z0-9._%+\\\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,})/i,\n    reference: /(?:Reference|Referencia|Ref)\\s*:?\\s*([^\\n]+)/i,\n    propertyArea: /(?:Property Area|Zona|Area|Municipio)\\s*:?\\s*([^\\n]+)/i,\n    web: /(?:Web|Portal)\\s*:?\\s*([^\\n]+)/i\n  };\n  \n  for (const [key, pattern] of Object.entries(patterns)) {\n    const match = text.match(pattern);\n    if (match && match[1]) {\n      data[key] = match[1].trim();\n    }\n  }\n  \n  if (!data.email && fallbackEmail) data.email = fallbackEmail;\n  if (data.telephone) data.telephone = data.telephone.replace(/\\s+/g, '').replace(/\\-/g, '');\n  if (data.reference) {\n    data.reference = data.reference.replace(/[^a-zA-Z0-9]/g, '').trim();\n    data.isValidLead = true;\n  }\n  \n  return data;\n}\n\nconst extracted = extractData(emailBody, emailSubject, senderEmail);\n\n// Retornamos TODAS las columnas que usa tu Excel inicializadas\nreturn {\n  json: {\n    ...extracted,\n    // Mapeo exacto para las columnas de tu Sheets\n    \"A\": extracted.reference,\n    \"Municipio  o Distrito Madrid\": extracted.propertyArea,\n    \"Agente\": \"\", \n    \"agente_email\": \"\",\n    \"Operacion\": \"\",\n    \"Alquiler\": \"\",\n    \"Link\": \"\",\n    \"Status\": \"Recibido\",\n    \"Correo Enviado\": \"\", // Aquí irá el tick ✅\n    \"emailFrom\": emailFrom,\n    \"receivedDate\": $input.item.json.date || new Date().toISOString()\n  }\n};"
+      },
+      "id": "d1ef9c9a-4eb5-4e72-9c47-698d33b58d1b",
+      "name": "Extract Client Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $('Extract Client Data').item.json.isValidLead }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "8ddf1b67-6c5a-4d54-b64c-4eb79093c47e",
+      "name": "IF Valid Lead?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -112,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1G2sGgwf0X9rXbrIiRrVc8jFYrMU2VKLxYTv333NVPFU",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "A",
+              "lookupValue": "={{ $json.reference }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e57216cd-06f1-4ec4-9046-69469b32e0f1",
+      "name": "Google Sheets - Buscar Propiedad",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        -272,
+        128
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "FkkfG0lE1IwtAsIS",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Combinar toda la información para ChatGPT\nconst clientName = $('Extract Client Data').item.json.name || 'el cliente';\nconst propertyRef = $json.A || $('Extract Client Data').item.json.reference || 'la referencia solicitada';\nconst propertyArea = $json['Municipio  o Distrito Madrid'] || $('Extract Client Data').item.json.propertyArea || 'Madrid';\nconst scrapedInfo = $json.scrapedContent || 'No se pudo obtener información adicional';\nconst alquiler = $json.Alquiler || 'No especificado';\nconst operacion = $json.Operacion || 'No especificada';\nconst link = $json.Link || '';\n\n// Crear prompt para ChatGPT\nconst prompt = `Eres un asistente de una inmobiliaria llamada Max Retail. Necesito que crees un resumen profesional y atractivo de una propiedad comercial para enviar a un cliente, tienes que decir esto si o si:\n\nINFORMACIÓN DE LA PROPIEDAD:\n- Referencia: ${propertyRef}\n- Ubicación: ${propertyArea}\n- Operación: ${operacion}\n- Alquiler mensual: ${alquiler}€\n- URL: ${link}\n\nINFORMACIÓN EXTRAÍDA DE LA WEB:\n${scrapedInfo}\n\nPor favor, crea un resumen atractivo y profesional de esta propiedad en 1-2 párrafos. Debe ser persuasivo pero honesto, destacando las características principales, ubicación y ventajas. No uses formato markdown ni bullets, solo párrafos. Sé conciso (máximo 100 palabras).`;\n\nreturn {\n  json: {\n    ...($input.item.json),\n    chatgpt_prompt: prompt,\n    clientName: clientName,\n    propertyRef: propertyRef\n  }\n};"
+      },
+      "id": "79af9431-d755-4c73-bc52-7fb237aca3e8",
+      "name": "Prepare ChatGPT Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        544,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "chatgpt-4o-latest",
+          "mode": "list",
+          "cachedResultName": "CHATGPT-4O-LATEST"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $json.chatgpt_prompt }}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 500,
+          "temperature": 0.7
+        }
+      },
+      "id": "2408f45a-cd1a-4074-9d80-b2c52d086c3d",
+      "name": "ChatGPT - Crear Resumen",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.4,
+      "position": [
+        704,
+        0
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "RwgcE23rQGujQaQ1",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Preparar el contenido del email - Réplica exacta del logo InmoRest\nconst clientName = $('Extract Client Data').item.json.name || 'Cliente';\nconst clientEmail = $('Extract Client Data').item.json.email || '';\nconst propertyRef = $('Google Sheets - Buscar Propiedad').item.json.A || $('Extract Client Data').item.json.reference || '';\nconst agentName = $('Google Sheets - Buscar Propiedad').item.json.Agente || 'Nuestro equipo';\nconst agentPhone = $('Google Sheets - Buscar Propiedad').item.json.agente_telefono || '';\nconst agentEmail = $('Google Sheets - Buscar Propiedad').item.json.agente_email || 'comercial@inmorest.com';\nconst propertyLink = $('Google Sheets - Buscar Propiedad').item.json.Link || '';\n\nlet chatgptSummary = '';\nif ($json.message && $json.message.content) {\n  chatgptSummary = $json.message.content;\n} else if ($json.text) {\n  chatgptSummary = $json.text;\n}\n\nconst agentNameWithPhone = agentPhone ? `${agentName} (${agentPhone})` : agentName;\n\nconst emailBody = `\n<!DOCTYPE html>\n<html>\n<head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">\n    <style>\n        body { font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #ffffff; }\n        .wrapper { max-width: 600px; margin: 0 auto; }\n        \n        /* RÉPLICA EXACTA DEL LOGO .PNG */\n        .logo-container { padding: 40px 0; text-align: center; }\n        .logo-table { display: inline-table; border-collapse: collapse; }\n        .arc-box { \n            border: 6px solid #b2b2b2; \n            border-radius: 50%; \n            border-right-color: transparent; \n            border-bottom-color: transparent; \n            width: 90px; \n            height: 90px; \n            display: inline-block; \n            vertical-align: middle;\n            margin-right: -45px;\n            transform: rotate(-15deg);\n        }\n        .logo-text { \n            font-family: 'Georgia', serif; \n            font-size: 58px; \n            font-weight: bold; \n            color: #d73327; \n            display: inline-block; \n            vertical-align: middle;\n            position: relative;\n            z-index: 10;\n            letter-spacing: -2px;\n        }\n\n        .message-content { font-size: 16px; color: #333; margin-top: 30px; }\n        .info-highlight { border-left: 3px solid #d73327; padding-left: 20px; margin: 25px 0; }\n        .link-style { color: #d73327; text-decoration: underline; font-weight: bold; }\n        .footer-info { margin-top: 50px; border-top: 1px solid #eee; padding-top: 20px; font-size: 14px; color: #666; }\n    </style>\n</head>\n<body>\n    <div class=\"wrapper\">\n        <div class=\"logo-container\">\n            <table class=\"logo-table\" align=\"center\">\n                <tr>\n                    <td style=\"vertical-align: middle;\">\n                        <div class=\"arc-box\"></div>\n                    </td>\n                    <td style=\"vertical-align: middle;\">\n                        <span class=\"logo-text\">InmoRest</span>\n                    </td>\n                </tr>\n            </table>\n        </div>\n\n        <div class=\"message-content\">\n            <p>Estimado/a <strong>${clientName}</strong>,</p>\n            \n            <p>Soy Aris Retail, de InmoRest  Consultores, le adjunto los datos y el link del inmueble por el que nos ha llamado: <strong>Ref. ${propertyRef}</strong>.</p>\n            \n            <div class=\"info-highlight\">\n                ${chatgptSummary}\n                ${propertyLink ? `<p><a href=\"${propertyLink}\" class=\"link-style\">Ver ficha técnica y fotos de la propiedad</a></p>` : ''}\n            </div>\n\n            <p>Para cualquier consulta puede responder a este correo. Mi compañero <strong>${agentNameWithPhone}</strong> le contactará en breve para ampliar detalles.</p>\n            \n            <p>Un saludo,</p>\n        </div>\n\n        <div class=\"footer-info\">\n            <strong>InmoRest Madrid</strong><br>\n            Especialistas en locales comerciales y hostelería<br>\n            911 332 878 | <a href=\"https://inmorest.com\">www.inmorest.com</a>\n        </div>\n    </div>\n</body>\n</html>\n`;\n\nreturn {\n  json: {\n    to: clientEmail,\n    cc: agentEmail,\n    subject: `Información Ref. ${propertyRef} - InmoRest`,\n    html: emailBody,\n    text: `Hola ${clientName}, te envío la información de la referencia ${propertyRef}. Saludos.`\n  }\n};"
+      },
+      "id": "1e771534-fd36-4fd5-96b5-515de6430239",
+      "name": "Prepare Email Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        976,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "comercial@inmorest.com",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false,
+          "ccEmail": "=miguelmorenteheras@gmail.com\n"
+        }
+      },
+      "id": "b37d0c97-ef48-4434-b893-ea21f7d38c7c",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        0
+      ],
+      "webhookId": "76173cec-4a23-400e-9e77-72084bd54285",
+      "credentials": {
+        "smtp": {
+          "id": "2vKMd4EJO2VpT0AC",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.Link }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        96,
+        0
+      ],
+      "id": "bada172d-51de-4dc3-a7af-12eadd4274c4",
+      "name": "HTTP Request",
+      "retryOnFail": false,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Limpiamos el HTML recibido del nodo anterior\nconst html = $('HTTP Request').item.json.data; // Asegúrate que el nombre coincide\n\nif (!html) {\n  return {\n    json: {\n      scrapedContent: 'No se pudo leer el contenido de la web',\n      hasValidUrl: false\n    }\n  };\n}\n\nconst cleanText = html\n  .replace(/<script[^>]*>[\\s\\S]*?<\\/script>/gi, '') // Elimina scripts\n  .replace(/<style[^>]*>[\\s\\S]*?<\\/style>/gi, '')   // Elimina CSS\n  .replace(/<[^>]+>/g, ' ')                         // Elimina etiquetas HTML\n  .replace(/\\s+/g, ' ')                             // Limpia espacios en blanco\n  .trim();\n\nreturn {\n  json: {\n    ...$input.item.json, // Mantenemos los datos de la inmobiliaria\n    scrapedContent: cleanText.substring(0, 2000), // Solo los primeros 2000 caracteres\n    hasValidUrl: true\n  }\n};"
+      },
+      "id": "058a4eea-e785-4a46-bab0-bfca9c1aa93f",
+      "name": "Clean HTML Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1G2sGgwf0X9rXbrIiRrVc8jFYrMU2VKLxYTv333NVPFU",
+          "mode": "list",
+          "cachedResultName": "Inmorest",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1G2sGgwf0X9rXbrIiRrVc8jFYrMU2VKLxYTv333NVPFU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 2118085177,
+          "mode": "list",
+          "cachedResultName": "Base de datos",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1G2sGgwf0X9rXbrIiRrVc8jFYrMU2VKLxYTv333NVPFU/edit#gid=2118085177"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "CORREO": "❌",
+            "ID": "={{ $json.A }}",
+            "URL": "={{ $json.Link }}",
+            "AGENTE RESPONSABLE": "={{ $json.Agente }}",
+            "CORREO - AGENTE": "={{ $json.agente_email }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "ID",
+              "displayName": "ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "URL",
+              "displayName": "URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "AGENTE RESPONSABLE",
+              "displayName": "AGENTE RESPONSABLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TFNO - AGENTE",
+              "displayName": "TFNO - AGENTE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "CORREO - AGENTE",
+              "displayName": "CORREO - AGENTE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CORREO",
+              "displayName": "CORREO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LLAMADO",
+              "displayName": "LLAMADO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        96,
+        224
+      ],
+      "id": "21bbc4ad-e89f-492f-bb2c-46bf74d99f79",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "5xDwRVx9iEVqvnEK",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1G2sGgwf0X9rXbrIiRrVc8jFYrMU2VKLxYTv333NVPFU",
+          "mode": "list",
+          "cachedResultName": "Inmorest",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1G2sGgwf0X9rXbrIiRrVc8jFYrMU2VKLxYTv333NVPFU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 2118085177,
+          "mode": "list",
+          "cachedResultName": "Base de datos",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1G2sGgwf0X9rXbrIiRrVc8jFYrMU2VKLxYTv333NVPFU/edit#gid=2118085177"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID": "={{ $('Google Sheets - Buscar Propiedad').item.json.A }}",
+            "URL": "={{ $('Google Sheets - Buscar Propiedad').item.json.Link }}",
+            "AGENTE RESPONSABLE": "={{ $('Google Sheets - Buscar Propiedad').item.json.Agente }}",
+            "CORREO - AGENTE": "={{ $('Google Sheets - Buscar Propiedad').item.json.agente_email }}",
+            "CORREO": "✅",
+            "CORREO - CLIENTE": "={{ $json.envelope.to }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "ID",
+              "displayName": "ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "URL",
+              "displayName": "URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "AGENTE RESPONSABLE",
+              "displayName": "AGENTE RESPONSABLE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CORREO - AGENTE",
+              "displayName": "CORREO - AGENTE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CORREO - CLIENTE",
+              "displayName": "CORREO - CLIENTE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "CORREO",
+              "displayName": "CORREO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LLAMADO",
+              "displayName": "LLAMADO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1408,
+        0
+      ],
+      "id": "83a47405-f59d-4a79-b174-255c7959ee85",
+      "name": "Append row in sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "5xDwRVx9iEVqvnEK",
+          "name": "Google Sheets account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Email Trigger (IMAP)": [
+      {
+        "json": {
+          "textHtml": "Referencia: 1131\r\n",
+          "textPlain": "Referencia: 1131\r\n",
+          "metadata": {
+            "delivered-to": "automatizacionesmorente@gmail.com",
+            "received": "by 2002:a05:6a11:b70f:b0:690:4d7a:4a4 with SMTP id mb15csp2093262pxc; Mon, 22 Dec 2025 10:56:04 -0800 (PST)",
+            "x-received": "by 2002:a05:6512:ba2:b0:59a:1240:dee2 with SMTP id 2adb3069b0e04-59a17d77452mr4151362e87.12.1766429764609; Mon, 22 Dec 2025 10:56:04 -0800 (PST)",
+            "arc-seal": "i=1; a=rsa-sha256; t=1766429764; cv=none; d=google.com; s=arc-20240605; b=k9Td/0DDTLtg7Mljdc7Dl1FNmTgNNuZFn4oa1AH3jz1gmzY4O4H644oLdZLIfml3Pi JqIxVUErsn9Z9t+p884p8gTYpARvkAmIgAXXPYzOWUElg93g8ZUNn7my/TuSmSwKmkYp T89s53k582cxHC+bDnDlqKR7IwfNo5iaWDFq+fgkbwXS/BqsX7CawLiJRovO0dVzh/HC 5emuGA6dPRNhYSuVDk1lBwI0zt1nWeg0sNbcMmd5zWLMt4bnzvtdo7XWYxsB2bxk8Ydd O62fijxWqpUdKlO9lkWZB9M0Ztocobu3Rf5ZXVQIUK47BknMmGJYrd6tLluE+lrQhMwy gH0A==",
+            "arc-message-signature": "i=1; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=arc-20240605; h=to:subject:message-id:date:from:mime-version:dkim-signature; bh=X72UFReUmqlOqXW+prtYno4zfoVI3550MOGnBH7BhzY=; fh=LQ7YsQMUJLiQW/fvnnLcaNpu7Y+B4iTUippxNzJjKd0=; b=kmwwgMijsOxpUnFnyfJdqmTbfAwFOyKDgsUoYcbdTQ9AycyYrzBceY5NPoQjDLlrrY ZguvX4VReL2lxUXuNtYwuBcunzfWj+4+/KyX3HREuicckyXsLBVIgexzOwCd2SOCIEwz z2nf4EEpKf1feyf4BRnlFWw2UeIzG7tperYt5lhDJIk4o2nq0YMsSibTds4202uX9zhc ubcksSKewuQ5A3CbnrQk3ba6Hq2ZHpzU/hEVxjoy5GYi52CrdGuNLznwseYUldC0VLQl IyzvpE5cx5Td6KPzePXBRkC3YBvATvsc0LEGpNK5H5cjecQEn6bMm1r3aSA7hvkz5CtS PLIQ==; dara=google.com",
+            "arc-authentication-results": "i=1; mx.google.com; dkim=pass header.i=@gmail.com header.s=20230601 header.b=fqC4dEXw; spf=pass (google.com: domain of miguelmorenteheras@gmail.com designates 209.85.220.41 as permitted sender) smtp.mailfrom=miguelmorenteheras@gmail.com; dmarc=pass (p=NONE sp=QUARANTINE dis=NONE) header.from=gmail.com; dara=pass header.i=@gmail.com",
+            "return-path": "<miguelmorenteheras@gmail.com>",
+            "received-spf": "pass (google.com: domain of miguelmorenteheras@gmail.com designates 209.85.220.41 as permitted sender) client-ip=209.85.220.41;",
+            "authentication-results": "mx.google.com; dkim=pass header.i=@gmail.com header.s=20230601 header.b=fqC4dEXw; spf=pass (google.com: domain of miguelmorenteheras@gmail.com designates 209.85.220.41 as permitted sender) smtp.mailfrom=miguelmorenteheras@gmail.com; dmarc=pass (p=NONE sp=QUARANTINE dis=NONE) header.from=gmail.com; dara=pass header.i=@gmail.com",
+            "dkim-signature": "v=1; a=rsa-sha256; c=relaxed/relaxed; d=gmail.com; s=20230601; t=1766429764; x=1767034564; dara=google.com; h=to:subject:message-id:date:from:mime-version:from:to:cc:subject :date:message-id:reply-to; bh=X72UFReUmqlOqXW+prtYno4zfoVI3550MOGnBH7BhzY=; b=fqC4dEXwcsDScLFBiL28b6f4tnnQqijpL/Kz5dKLvC4Po1YrgY3/12GHWAddhIpD70 /DFmmUG1iG+9QZwLBcxbN96X26cvksDKQv3TLKBlj4Ledwv/8RHiW0xqfanror7k1N2i uQoRP7QryirOSUJUwy7uLOPPU+Klw37gsGdEujWkHqNpaOxBc/e6nS0bxpfUEVfiDkQh QiSaSmIPfwfKlF5rNku9rab6+08SX0XBYc6LGGNSAmDkMzkGYrYjxesdiXDsfjMXp7Km lz7jiTw6vHhLWhiWXcicISx+WP7Sb2iW8To7K4aBF4CInSb2AaAFT/sIT37R6Juz14wn hyCw==",
+            "x-google-dkim-signature": "v=1; a=rsa-sha256; c=relaxed/relaxed; d=1e100.net; s=20230601; t=1766429764; x=1767034564; h=to:subject:message-id:date:from:mime-version:x-gm-gg :x-gm-message-state:from:to:cc:subject:date:message-id:reply-to; bh=X72UFReUmqlOqXW+prtYno4zfoVI3550MOGnBH7BhzY=; b=jsweEezene0LcsoHYvFC1WDllehF1+23/v6n5amS2gPd36hD3tL/IEabMqdBheecQY /wOghUJr21RU6ZijHDM1FLwmIazavHjqIu/pLGyO+5B511Lm5tzrE0T0jhw6yI3jTa8e dtfO8EDuVZpywi/lTOKDFpA9YiPHtCZNeAEysF61Pzym+/cewB/3L4wt8QtEjuK4ren2 Pwlz/oqIJYcxXZrStnpggYwW6UUq1ASXg53/Vx54h+UAQGVOWCwuDwlQdHKZUsLZ/DY5 6NIy/oJTH3i3W9KoWeNRHGMPWAcMahGZRs2r8S1+QENaymCs58yKQGrUDxjcnBBFoBm6 7LTw==",
+            "x-gm-message-state": "AOJu0YyT0npPNgsXdH1QrTFezXGNtPLMm8tlGBuRV7JExs6B8fbUwVS7 G8KXqhQ5Z2FEfpEm3GscaYlFuYccTnq3RAIbXwmviYPv0LnOHpQQgO53z3d19EFreoZnJU4404D iLsIeuzqtoFHNNHhdvmsit4P8mOQLIWsnLQ==",
+            "x-gm-gg": "AY/fxX6Ct9cwZlfbF9CNDwawsfXE7iNCrSg+lx1uhUHgAlAb9TfJvVS80PlMkaJh4ml 8gp4pPcrskHRvGZpWXAz7CH9sPes8VCyYlHx2XoNyYBOw/ChewOru2juprjSMkwrC0zifmALTZj nJMTT2tM5bJnJY25ok+d2nc4XmZ+2q8pEjZeyJ/9sNl7txeUXceU2gVdYBaYAXopaKqqQXFbgRL edpV83brx4swIyikB3YIrvyvQDvpipcvATZnxRxq7neE1gQQhCYsG6fSESTw58XCYEFgQ==",
+            "x-google-smtp-source": "AGHT+IHXwEyhGV65Se3v/Sv4+MbSIiEqbkMEdkt3u1aQXD+qAavR4UDZI53MmcbT7tipcOOkIv6FZwqHw66yUnzC9gY=",
+            "mime-version": "1.0",
+            "x-gm-features": "AQt7F2pZUr58-50eC8bsm067eRqAXnufMNBcTXTJHSiJkdXf9MYWk8EharbXTM0",
+            "message-id": "<CAHK59PMGVPULW7TuEawz9+6SReXMkbMFHJvboyyYXJTX0pbdGQ@mail.gmail.com>",
+            "content-type": "multipart/alternative; boundary=\"00000000000093844a06468efaca\""
+          },
+          "attributes": {
+            "uid": 1345
+          },
+          "from": "Miguel Morente de las Heras <miguelmorenteheras@gmail.com>",
+          "date": "Mon, 22 Dec 2025 19:55:51 +0100",
+          "subject": "",
+          "to": "automatizacionesmorente@gmail.com"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Email Trigger (IMAP)": {
+      "main": [
+        [
+          {
+            "node": "Extract Client Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Client Data": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Buscar Propiedad",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Valid Lead?": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Buscar Propiedad": {
+      "main": [
+        [
+          {
+            "node": "IF Valid Lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare ChatGPT Prompt": {
+      "main": [
+        [
+          {
+            "node": "ChatGPT - Crear Resumen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ChatGPT - Crear Resumen": {
+      "main": [
+        [
+          {
+            "node": "Prepare Email Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Email Content": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Clean HTML Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean HTML Content": {
+      "main": [
+        [
+          {
+            "node": "Prepare ChatGPT Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "0bc73f07-c355-4fc0-906c-fcd5be8e7e11",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "862bec4df5c74169d9c8cfe33818e199a57aaa7d30da68023bb18214fc8b121f"
+  },
+  "id": "5nwWDratmuBomCke",
+  "tags": []
+}
